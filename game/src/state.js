@@ -6,7 +6,7 @@ import { CX, CY, W, H, SAVE_KEY } from './config.js';
 import { randRange, randChoice } from './random.js';
 
 export function emptyBest() {
-  return { score: 0, wave: 0, kills: 0 };
+  return { score: 0, wave: 0, kills: 0, streak: 0 };
 }
 
 export function loadBest() {
@@ -17,7 +17,7 @@ export function loadBest() {
   return emptyBest();
 }
 
-export function saveBest(score, wave, kills) {
+export function saveBest(score, wave, kills, streak = 0) {
   try {
     const cur = loadBest();
     if (score > cur.score) {
@@ -27,6 +27,7 @@ export function saveBest(score, wave, kills) {
           score: Math.floor(score),
           wave: Math.max(wave, cur.wave),
           kills: Math.max(kills, cur.kills),
+          streak: Math.max(streak, cur.streak || 0),
         }),
       );
     }

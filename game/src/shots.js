@@ -18,7 +18,7 @@ export function setupScene(scene) {
   if (scene === 'start') {
     S.state = 'start';
     S.time = 4.2;
-    S.best = { score: 4820, wave: 6, kills: 142 };
+    S.best = { score: 4820, wave: 6, kills: 142, streak: 0 };
     // A few creatures at the edges, for a richer title.
     S.foes.push(makeFoe('cinder', 240, 190));
     S.foes.push(makeFoe('wisp', 1020, 210));
@@ -34,7 +34,7 @@ export function setupScene(scene) {
   S.combo = 5.4;
   S.comboTimer = 3.5;
   S.bannerTimer = 0;
-  S.best = { score: 4820, wave: 6, kills: 142 };
+  S.best = { score: 4820, wave: 6, kills: 142, streak: 9 };
 
   k.x = CX - 45;
   k.y = CY + 40;
@@ -144,7 +144,7 @@ export function setupScene(scene) {
     S.score = 6420;
     S.kills = 138;
     S.time = 195;
-    S.best = { score: 6420, wave: 5, kills: 138 };
+    S.best = { score: 6420, wave: 5, kills: 138, streak: 12 };
     S.state = 'over';
   }
 }

@@ -19,7 +19,8 @@ bounty, $1,000 in USDC.
 - **Juice:** particles, screen shake, hit-stop, floating damage numbers,
   combo multiplier, dash with invulnerability, heart / bomb / magnet
   pickups, and kill-streak shouts (Ember Streak 5, Rampage 10, Inferno 15,
-  Emberfall 25) that reset when you take a hit.  pickups, and a full synthesized WebAudio soundscape — no audio files.
+  Emberfall 25) that reset when you take a hit. Every tenth kill drops a
+  surge shard, and your best streak is kept on the game-over screen.  pickups, and a full synthesized WebAudio soundscape — no audio files.
 - **Complete:** title screen with best record, HUD (HP, dash, XP, score,
   wave, kills, combo), pause, game-over stats with restart, best score kept
   in localStorage.

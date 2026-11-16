@@ -116,6 +116,8 @@ function stepWaves(dt) {
 
   // The field is clear: the next wave begins.
   S.wave++;
+  S.score += 50 * S.wave;
+  popup(CX, CY - 70, 'WAVE BONUS +' + (50 * S.wave), '#ffd166', 20);
   S.waveSpawned = 0;
   S.waveQuota = Math.floor(14 + S.wave * 5.5);
   S.spawnCooldown = 1.6;

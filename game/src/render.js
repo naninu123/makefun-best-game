@@ -530,6 +530,25 @@ export function drawHud() {
     ctx.restore();
   }
 
+  // The current kill streak, above the resonance bar while it lasts.
+  if (S.streak >= 3) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ff006e';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText(`KILL STREAK  x${S.streak}`, CX, H - 44);
+  }
+
+  // First-time players get the controls on screen until they settle in.
+  if (S.time < 6 && S.state === 'play') {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, (6 - S.time) / 1.5);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#e5dcf2';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText('WASD move  •  hold click to fire  •  Shift to dash', CX, H - 64);
+    ctx.restore();
+  }
+
   // The ember resonance bar along the bottom.
   const xpW = W - 48;
   const xpX = 24;
@@ -751,11 +770,12 @@ export function drawFallen() {
     ['FINAL SCORE', Math.floor(S.score).toLocaleString(), '#ffd166'],
     ['WAVE REACHED', `WAVE ${S.wave}`, '#ff9f1c'],
     ['CREATURES VANQUISHED', String(S.kills), '#00f5d4'],
+    ['BEST KILL STREAK', 'x' + S.best.streak, '#ff006e'],
     ['TIME SURVIVED', `${mins}:${secs}  (LV ${S.keeper.level})`, '#e0aaff'],
   ];
 
   rows.forEach((row, idx) => {
-    const sy = by + 150 + idx * 34;
+    const sy = by + 150 + idx * 30;
     ctx.textAlign = 'left';
     ctx.fillStyle = '#b5a8c9';
     ctx.font = 'bold 14px sans-serif';

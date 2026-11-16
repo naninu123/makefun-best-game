@@ -106,6 +106,7 @@ export function slayFoe(foe) {
   S.comboTimer = 4.2;
   S.score += foe.score * Math.floor(S.combo);
   S.streak++;
+  if (S.streak > (S.best.streak || 0)) S.best.streak = S.streak;
   // A clean run of kills earns a shout: the longer the streak, the louder.
   const marks = [[25, 'EMBERFALL'], [15, 'INFERNO'], [10, 'RAMPAGE'], [5, 'EMBER STREAK']];
   for (const [at, label] of marks) {
@@ -115,6 +116,11 @@ export function slayFoe(foe) {
       Sfx.play('levelup');
       break;
     }
+  }
+  // Every tenth kill drops a surge shard worth ten embers.
+  if (S.kills % 10 === 0) {
+    S.shards.push({ x: foe.x, y: foe.y, vx: randRange(-60, 60), vy: randRange(-60, 60), val: 10, r: 8, color: '#00f5d4', phase: 0 });
+    popup(foe.x, foe.y - 24, 'SURGE SHARD!', '#00f5d4', 16);
   }
 
   const burst = foe.type === 'boss' ? 55 : (foe.type === 'brute' ? 24 : 14);
@@ -188,7 +194,7 @@ export function woundKeeper(dmg) {
   if (k.hp <= 0) {
     k.hp = 0;
     S.state = 'over';
-    saveBest(S.score, S.wave, S.kills);
+    saveBest(S.score, S.wave, S.kills, S.best.streak);
     S.best = loadBest();
   }
 }
