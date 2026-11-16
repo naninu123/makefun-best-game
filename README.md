@@ -41,15 +41,15 @@ Shift dash, P pause, M mute, R restart, 1/2/3 pick an upgrade card.
 - `main.ts` — hands the game in (copies `game/` + `screenshots/`, writes `dossier.json`)
 - `game/index.html` — canvas + module entry
 - `game/src/main.js` — boot, game loop, input wiring
-- `game/src/state.js` — shared game state, player, best record, derived stats
-- `game/src/update.js` — per-frame simulation (movement, waves, bullets, enemy AI)
-- `game/src/render.js` — all drawing: arena, entities, HUD, screens
-- `game/src/combat.js` — dash, firing, damage, kills, level-ups, upgrades
-- `game/src/enemies.js` — enemy kinds and the wave spawner
-- `game/src/audio.js` — synthesized WebAudio effects and ambient pad
+- `game/src/state.js` — shared run state, keeper, best record, derived stats
+- `game/src/update.js` — per-frame simulation (keeper, waves, bolts, foe AI)
+- `game/src/render.js` — all drawing: arena, keeper, foes, HUD, screens
+- `game/src/combat.js` — dash, firing, hits, kills, level-ups, blessings
+- `game/src/enemies.js` — foe kinds and the wave spawner
+- `game/src/audio.js` — synthesized WebAudio effects and ambient drone
 - `game/src/input.js` — keyboard + mouse state
-- `game/src/particles.js` — particles and floating combat numbers
-- `game/src/config.js` — arena size, upgrade pool
+- `game/src/particles.js` — sparks and floating combat numbers
+- `game/src/config.js` — arena size, blessing pool
 - `game/src/random.js` — seeded RNG for deterministic screenshots
 - `game/src/shots.js` — deterministic screenshot scene builder
 - `vendor/makefun-game.ts` — the kit's dossier library, unchanged

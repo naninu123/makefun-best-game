@@ -5,23 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EMBERFALL — Last Lantern of the Hollow</title>
 <style>
-  *, *::before, *::after {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-    user-select: none;
-    -webkit-user-select: none;
-  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
     width: 100%;
     height: 100%;
-    background-color: #07050a;
+    overflow: hidden;
+    background: #07050a;
     color: #fff;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
   }
   #game-wrap {
     position: relative;
@@ -34,16 +30,16 @@
   }
   canvas {
     display: block;
-    max-width: 100vw;
-    max-height: 100vh;
     width: auto;
     height: auto;
+    max-width: 100vw;
+    max-height: 100vh;
     aspect-ratio: 16 / 9;
-    box-shadow: 0 0 50px rgba(255, 110, 30, 0.15), 0 0 2px rgba(255, 180, 100, 0.3);
-    background-color: #09060e;
+    background: #09060e;
     cursor: crosshair;
+    box-shadow: 0 0 50px rgba(255, 110, 30, 0.15), 0 0 2px rgba(255, 180, 100, 0.3);
   }
-  /* Read aloud, never shown: the status line screen readers announce. */
+  /* Announced to screen readers, never shown. */
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>
 </head>

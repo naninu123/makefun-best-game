@@ -1,30 +1,30 @@
-// EMBERFALL — everything drawn: the canvas setup, the arena, entities, HUD
-// and every screen (title, level-up, pause, game over). No simulation here;
-// update.js moves things, this file only paints the current state.
-import { G, getAuraRadius, getDashMaxCooldown } from './state.js';
-import { W, H, CX, CY, UPGRADES } from './config.js';
+// EMBERFALL — everything the eye sees: the canvas, the arena, the keeper,
+// the foes, the HUD and all four screens (title, blessings, pause, fallen).
+// Nothing here simulates; update.js moves things and this file paints the
+// state it finds, once per frame.
+import { S, auraRange, dashCooldownMax } from './state.js';
+import { W, H, CX, CY, BLESSINGS } from './config.js';
 import { rand } from './random.js';
 import { Sfx } from './audio.js';
 import { mouse } from './input.js';
-import { getUpgradeCardRects } from './combat.js';
+import { cardRects } from './combat.js';
 
 export const canvas = document.getElementById('gameCanvas');
 export const ctx = canvas.getContext('2d');
 
-function resizeCanvas() {
-  const winW = window.innerWidth;
-  const winH = window.innerHeight;
-  const scale = Math.min(winW / W, winH / H);
+function fitCanvas() {
+  const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
   canvas.style.width = Math.floor(W * scale) + 'px';
   canvas.style.height = Math.floor(H * scale) + 'px';
 }
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
+window.addEventListener('resize', fitCanvas);
+fitCanvas();
 
-export function drawPolygon(x, y, r, sides, rotation, fill, stroke, lineWidth = 2) {
+// A regular polygon, filled and/or stroked.
+export function poly(x, y, r, sides, rot, fill, stroke, lw = 2) {
   ctx.beginPath();
   for (let i = 0; i < sides; i++) {
-    const a = rotation + (i * Math.PI * 2) / sides;
+    const a = rot + (i * Math.PI * 2) / sides;
     const px = x + Math.cos(a) * r;
     const py = y + Math.sin(a) * r;
     if (i === 0) ctx.moveTo(px, py);
@@ -37,12 +37,13 @@ export function drawPolygon(x, y, r, sides, rotation, fill, stroke, lineWidth = 
   }
   if (stroke) {
     ctx.strokeStyle = stroke;
-    ctx.lineWidth = lineWidth;
+    ctx.lineWidth = lw;
     ctx.stroke();
   }
 }
 
-export function drawUpgradeIcon(id, cx, cy, r, color) {
+// The little pictogram for one blessing, drawn at (cx, cy).
+export function blessingGlyph(id, cx, cy, r, color) {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.strokeStyle = color;
@@ -101,43 +102,33 @@ export function drawUpgradeIcon(id, cx, cy, r, color) {
     ctx.arc(0, 0, r * 0.85, 0, Math.PI * 2);
     ctx.stroke();
   } else {
-    drawPolygon(0, 0, r * 0.8, 6, -Math.PI / 2, color, '#fff', 1.5);
+    poly(0, 0, r * 0.8, 6, -Math.PI / 2, color, '#fff', 1.5);
   }
   ctx.restore();
 }
 
-export function render() {
-  ctx.save();
-
-  // Screen Shake
-  if (G.shakeTimer > 0 && G.state === 'play') {
-    const sx = (rand() - 0.5) * G.shakeMag * 2;
-    const sy = (rand() - 0.5) * G.shakeMag * 2;
-    ctx.translate(sx, sy);
-  }
-
-  // 1. Arena Floor & Central Lantern Light
+function drawArena() {
   ctx.fillStyle = '#09060e';
   ctx.fillRect(0, 0, W, H);
 
-  const pulse = Math.sin(G.time * 3.2) * 18;
-  const lanternGrad = ctx.createRadialGradient(CX, CY, 12, CX, CY, 520 + pulse);
-  lanternGrad.addColorStop(0, 'rgba(255, 195, 100, 0.32)');
-  lanternGrad.addColorStop(0.22, 'rgba(255, 115, 35, 0.16)');
-  lanternGrad.addColorStop(0.55, 'rgba(110, 40, 85, 0.06)');
-  lanternGrad.addColorStop(1, 'rgba(9, 6, 14, 0)');
-  ctx.fillStyle = lanternGrad;
+  // The lantern's light: a warm radial wash that breathes.
+  const breathe = Math.sin(S.time * 3.2) * 18;
+  const glow = ctx.createRadialGradient(CX, CY, 12, CX, CY, 520 + breathe);
+  glow.addColorStop(0, 'rgba(255, 195, 100, 0.32)');
+  glow.addColorStop(0.22, 'rgba(255, 115, 35, 0.16)');
+  glow.addColorStop(0.55, 'rgba(110, 40, 85, 0.06)');
+  glow.addColorStop(1, 'rgba(9, 6, 14, 0)');
+  ctx.fillStyle = glow;
   ctx.fillRect(0, 0, W, H);
 
-  // Subtle Ancient Stone Concentric Rings & Grid
+  // Faint rings and a grid etched into the stone.
   ctx.strokeStyle = 'rgba(255, 180, 120, 0.05)';
   ctx.lineWidth = 1.5;
-  [130, 260, 410, 560].forEach((rad) => {
+  for (const rad of [130, 260, 410, 560]) {
     ctx.beginPath();
     ctx.arc(CX, CY, rad, 0, Math.PI * 2);
     ctx.stroke();
-  });
-
+  }
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
   ctx.lineWidth = 1;
   for (let x = 80; x < W; x += 80) {
@@ -153,33 +144,31 @@ export function render() {
     ctx.stroke();
   }
 
-  // Arena Border Runes
+  // The rune border.
   ctx.strokeStyle = 'rgba(255, 130, 50, 0.25)';
   ctx.lineWidth = 3;
   ctx.strokeRect(14, 14, W - 28, H - 28);
 
-  // Stone Pillars
-  for (let i = 0; i < G.pillars.length; i++) {
-    const pil = G.pillars[i];
-    drawPolygon(pil.x, pil.y, pil.r + 4, 8, Math.PI / 8, '#161122', '#3a2c52', 2);
-    drawPolygon(pil.x, pil.y, pil.r - 5, 8, Math.PI / 8, '#231c35', '#ff9f1c', 1);
+  // Pillars.
+  for (const pil of S.pillars) {
+    poly(pil.x, pil.y, pil.r + 4, 8, Math.PI / 8, '#161122', '#3a2c52', 2);
+    poly(pil.x, pil.y, pil.r - 5, 8, Math.PI / 8, '#231c35', '#ff9f1c', 1);
   }
 
-  // Central Sacred Lantern Brazier
+  // The brazier at the middle of everything.
   ctx.save();
   ctx.shadowColor = '#ff9f1c';
   ctx.shadowBlur = 28;
-  drawPolygon(CX, CY, 30, 8, G.time * 0.2, '#1f162b', '#ff9f1c', 2.5);
-  drawPolygon(CX, CY, 19, 6, -G.time * 0.5, '#ff6b35', '#ffd166', 2);
+  poly(CX, CY, 30, 8, S.time * 0.2, '#1f162b', '#ff9f1c', 2.5);
+  poly(CX, CY, 19, 6, -S.time * 0.5, '#ff6b35', '#ffd166', 2);
   ctx.beginPath();
-  ctx.arc(CX, CY, 9 + Math.sin(G.time * 6) * 2, 0, Math.PI * 2);
+  ctx.arc(CX, CY, 9 + Math.sin(S.time * 6) * 2, 0, Math.PI * 2);
   ctx.fillStyle = '#fff5cc';
   ctx.fill();
   ctx.restore();
 
-  // Drifting Background Embers
-  for (let i = 0; i < G.bgEmbers.length; i++) {
-    const b = G.bgEmbers[i];
+  // Embers drifting up through the dark.
+  for (const b of S.drifting) {
     ctx.globalAlpha = b.alpha;
     ctx.fillStyle = b.color;
     ctx.beginPath();
@@ -187,250 +176,248 @@ export function render() {
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+}
 
-  // If not on title screen, draw active battlefield entities
-  if (G.player) {
-    const p = G.player;
-
-    // Lantern Aura Upgrade ring
-    const auraR = getAuraRadius();
-    if (auraR > 0) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, auraR, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 175, 55, 0.08)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255, 200, 90, 0.38)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([8, 6]);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // XP Gems
-    for (let i = 0; i < G.gems.length; i++) {
-      const g = G.gems[i];
-      const s = g.r + Math.sin(G.time * 5 + g.phase) * 1.2;
-      drawPolygon(g.x, g.y, s, 4, G.time * 2 + g.phase, g.color, '#ffffff', 1);
-    }
-
-    // Rare Pickups
-    for (let i = 0; i < G.pickups.length; i++) {
-      const pk = G.pickups[i];
-      const bob = Math.sin(pk.phase) * 3;
-      ctx.save();
-      ctx.translate(pk.x, pk.y + bob);
-      let col = '#ff4d6d';
-      if (pk.type === 'bomb') col = '#ffd166';
-      if (pk.type === 'magnet') col = '#00f5d4';
-
-      ctx.shadowColor = col;
-      ctx.shadowBlur = 14;
-      ctx.beginPath();
-      ctx.arc(0, 0, pk.r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(20, 15, 30, 0.9)';
-      ctx.fill();
-      ctx.strokeStyle = col;
-      ctx.lineWidth = 2.2;
-      ctx.stroke();
-
-      ctx.fillStyle = col;
-      ctx.font = 'bold 12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const label = pk.type === 'heart' ? 'HP' : (pk.type === 'bomb' ? '✦' : 'U');
-      ctx.fillText(label, 0, 1);
-      ctx.restore();
-    }
-
-    // Particles
-    for (let i = 0; i < G.particles.length; i++) {
-      const pt = G.particles[i];
-      ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
-      ctx.fillStyle = pt.color;
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, pt.r * (pt.life / pt.maxLife), 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-
-    // Enemy Projectiles
-    for (let i = 0; i < G.enemyBullets.length; i++) {
-      const eb = G.enemyBullets[i];
-      ctx.beginPath();
-      ctx.arc(eb.x, eb.y, eb.r, 0, Math.PI * 2);
-      ctx.fillStyle = eb.color;
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
-
-    // Player Bolts
-    for (let i = 0; i < G.bullets.length; i++) {
-      const b = G.bullets[i];
-      const ang = Math.atan2(b.vy, b.vx);
-      ctx.save();
-      ctx.translate(b.x, b.y);
-      ctx.rotate(ang);
-      ctx.fillStyle = b.crit ? '#fff3b0' : '#ff9f1c';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, b.r * 1.9, b.r * 0.85, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.ellipse(2, 0, b.r * 0.9, b.r * 0.45, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // Enemies
-    for (let i = 0; i < G.enemies.length; i++) {
-      const e = G.enemies[i];
-      const fillCol = e.flash > 0 ? '#ffffff' : e.color;
-      const strokeCol = e.flash > 0 ? '#ffd166' : '#1b112c';
-
-      ctx.save();
-      if (e.type === 'cinder') {
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
-        ctx.fillStyle = fillCol;
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = '#ffd166';
-        ctx.stroke();
-        // Glowing core
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, e.r * 0.45, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff1d0';
-        ctx.fill();
-      } else if (e.type === 'spitter') {
-        drawPolygon(e.x, e.y, e.r * 1.15, 4, G.time * 1.8 + e.phase, fillCol, '#f72585', 2.2);
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, 4.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
-      } else if (e.type === 'brute') {
-        drawPolygon(e.x, e.y, e.r, 6, G.time * 0.6, fillCol, '#ffb703', 3);
-        drawPolygon(e.x, e.y, e.r * 0.55, 6, -G.time * 0.6, '#6a040f', '#ffba08', 1.5);
-      } else if (e.type === 'wisp') {
-        const moveAng = Math.atan2(e.vy, e.vx);
-        drawPolygon(e.x, e.y, e.r * 1.25, 3, moveAng, fillCol, '#ffffff', 1.8);
-      } else if (e.type === 'splitter') {
-        drawPolygon(e.x, e.y, e.r * 1.1, 4, Math.PI / 4 + Math.sin(G.time * 4) * 0.2, fillCol, '#b5e48c', 2.2);
-        drawPolygon(e.x, e.y, e.r * 0.5, 4, 0, '#1b4332', '#b5e48c', 1.5);
-      } else if (e.type === 'boss') {
-        ctx.shadowColor = '#9d4edd';
-        ctx.shadowBlur = 22;
-        drawPolygon(e.x, e.y, e.r, 10, G.time * 0.8, '#240046', '#c77dff', 3.5);
-        drawPolygon(e.x, e.y, e.r * 0.72, 8, -G.time * 1.2, fillCol, '#ff9e00', 2);
-        // Glowing Warden Eyes
-        ctx.fillStyle = '#ffbe0b';
-        ctx.beginPath();
-        ctx.arc(e.x - 12, e.y - 6, 6, 0, Math.PI * 2);
-        ctx.arc(e.x + 12, e.y - 6, 6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Small health bar on damaged tough enemies
-      if (e.hp < e.maxHp && e.type !== 'boss' && e.maxHp >= 40) {
-        const bw = e.r * 1.8;
-        const bh = 4;
-        const bx = e.x - bw / 2;
-        const by = e.y - e.r - 10;
-        ctx.fillStyle = 'rgba(0,0,0,0.65)';
-        ctx.fillRect(bx, by, bw, bh);
-        ctx.fillStyle = '#ff4d6d';
-        ctx.fillRect(bx, by, bw * Math.max(0, e.hp / e.maxHp), bh);
-      }
-      ctx.restore();
-    }
-
-    // Player Character (Lantern-Keeper)
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    if (p.invuln > 0 && Math.floor(G.time * 20) % 2 === 0) {
-      ctx.globalAlpha = 0.55;
-    }
-
-    // Keeper Cloak
-    ctx.shadowColor = '#ff9f1c';
-    ctx.shadowBlur = 16;
-    drawPolygon(0, 0, p.r * 1.15, 6, p.angle, '#3a0ca3', '#ff9f1c', 2.2);
-
-    // Hood / Head
-    ctx.beginPath();
-    ctx.arc(0, 0, p.r * 0.68, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffd166';
-    ctx.fill();
-
-    // Aiming Hand-Lantern
-    const lx = Math.cos(p.angle) * (p.r + 7);
-    const ly = Math.sin(p.angle) * (p.r + 7);
-    ctx.beginPath();
-    ctx.arc(lx, ly, 6.5, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff8d6';
-    ctx.fill();
-    ctx.strokeStyle = '#ff6b35';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.restore();
-
-    // Floating Combat Numbers
-    for (let i = 0; i < G.floatTexts.length; i++) {
-      const ft = G.floatTexts[i];
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, ft.life / ft.maxLife);
-      ctx.font = `bold ${ft.size}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#000000';
-      ctx.fillText(ft.text, ft.x + 1, ft.y + 1);
-      ctx.fillStyle = ft.color;
-      ctx.fillText(ft.text, ft.x, ft.y);
-      ctx.restore();
-    }
+function drawShardsAndDrops() {
+  for (const g of S.shards) {
+    const s = g.r + Math.sin(S.time * 5 + g.phase) * 1.2;
+    poly(g.x, g.y, s, 4, S.time * 2 + g.phase, g.color, '#ffffff', 1);
   }
 
-  // Hurt Vignette & Bomb Flash
-  if (G.hurtFlash > 0) {
+  for (const d of S.drops) {
+    const bob = Math.sin(d.phase) * 3;
+    ctx.save();
+    ctx.translate(d.x, d.y + bob);
+    let col = '#ff4d6d';
+    if (d.type === 'bomb') col = '#ffd166';
+    if (d.type === 'magnet') col = '#00f5d4';
+
+    ctx.shadowColor = col;
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.arc(0, 0, d.r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(20, 15, 30, 0.9)';
+    ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+
+    ctx.fillStyle = col;
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(d.type === 'heart' ? 'HP' : (d.type === 'bomb' ? '✦' : 'U'), 0, 1);
+    ctx.restore();
+  }
+}
+
+function drawShots() {
+  for (const s of S.foeShots) {
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = s.color;
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  for (const b of S.bolts) {
+    const ang = Math.atan2(b.vy, b.vx);
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(ang);
+    ctx.fillStyle = b.crit ? '#fff3b0' : '#ff9f1c';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, b.r * 1.9, b.r * 0.85, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(2, 0, b.r * 0.9, b.r * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  for (const pt of S.sparks) {
+    ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
+    ctx.fillStyle = pt.color;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, pt.r * (pt.life / pt.maxLife), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawFoes() {
+  for (const f of S.foes) {
+    const fill = f.flash > 0 ? '#ffffff' : f.color;
+
+    ctx.save();
+    if (f.type === 'cinder') {
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ffd166';
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * 0.45, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff1d0';
+      ctx.fill();
+    } else if (f.type === 'spitter') {
+      poly(f.x, f.y, f.r * 1.15, 4, S.time * 1.8 + f.phase, fill, '#f72585', 2.2);
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+    } else if (f.type === 'brute') {
+      poly(f.x, f.y, f.r, 6, S.time * 0.6, fill, '#ffb703', 3);
+      poly(f.x, f.y, f.r * 0.55, 6, -S.time * 0.6, '#6a040f', '#ffba08', 1.5);
+    } else if (f.type === 'wisp') {
+      poly(f.x, f.y, f.r * 1.25, 3, Math.atan2(f.vy, f.vx), fill, '#ffffff', 1.8);
+    } else if (f.type === 'splitter') {
+      poly(f.x, f.y, f.r * 1.1, 4, Math.PI / 4 + Math.sin(S.time * 4) * 0.2, fill, '#b5e48c', 2.2);
+      poly(f.x, f.y, f.r * 0.5, 4, 0, '#1b4332', '#b5e48c', 1.5);
+    } else if (f.type === 'boss') {
+      ctx.shadowColor = '#9d4edd';
+      ctx.shadowBlur = 22;
+      poly(f.x, f.y, f.r, 10, S.time * 0.8, '#240046', '#c77dff', 3.5);
+      poly(f.x, f.y, f.r * 0.72, 8, -S.time * 1.2, fill, '#ff9e00', 2);
+      ctx.fillStyle = '#ffbe0b';
+      ctx.beginPath();
+      ctx.arc(f.x - 12, f.y - 6, 6, 0, Math.PI * 2);
+      ctx.arc(f.x + 12, f.y - 6, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // A dented foe shows a sliver of health (bosses get the big bar instead).
+    if (f.hp < f.maxHp && f.type !== 'boss' && f.maxHp >= 40) {
+      const bw = f.r * 1.8;
+      const bx = f.x - bw / 2;
+      const by = f.y - f.r - 10;
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx.fillRect(bx, by, bw, 4);
+      ctx.fillStyle = '#ff4d6d';
+      ctx.fillRect(bx, by, bw * Math.max(0, f.hp / f.maxHp), 4);
+    }
+    ctx.restore();
+  }
+}
+
+function drawKeeper() {
+  const k = S.keeper;
+
+  // The halo blessing paints its reach on the floor.
+  const halo = auraRange();
+  if (halo > 0) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(k.x, k.y, halo, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 175, 55, 0.08)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 200, 90, 0.38)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([8, 6]);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.translate(k.x, k.y);
+  if (k.invuln > 0 && Math.floor(S.time * 20) % 2 === 0) ctx.globalAlpha = 0.55;
+
+  ctx.shadowColor = '#ff9f1c';
+  ctx.shadowBlur = 16;
+  poly(0, 0, k.r * 1.15, 6, k.angle, '#3a0ca3', '#ff9f1c', 2.2);
+
+  ctx.beginPath();
+  ctx.arc(0, 0, k.r * 0.68, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffd166';
+  ctx.fill();
+
+  // The little lantern the keeper aims with.
+  const lx = Math.cos(k.angle) * (k.r + 7);
+  const ly = Math.sin(k.angle) * (k.r + 7);
+  ctx.beginPath();
+  ctx.arc(lx, ly, 6.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff8d6';
+  ctx.fill();
+  ctx.strokeStyle = '#ff6b35';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  for (const ft of S.popups) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, ft.life / ft.maxLife);
+    ctx.font = `bold ${ft.size}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#000000';
+    ctx.fillText(ft.text, ft.x + 1, ft.y + 1);
+    ctx.fillStyle = ft.color;
+    ctx.fillText(ft.text, ft.x, ft.y);
+    ctx.restore();
+  }
+}
+
+function drawFlashes() {
+  if (S.hurtFlash > 0) {
     const vig = ctx.createRadialGradient(CX, CY, H * 0.25, CX, CY, W * 0.65);
     vig.addColorStop(0, 'rgba(255, 0, 50, 0)');
-    vig.addColorStop(1, `rgba(255, 15, 60, ${G.hurtFlash * 0.65})`);
+    vig.addColorStop(1, `rgba(255, 15, 60, ${S.hurtFlash * 0.65})`);
     ctx.fillStyle = vig;
     ctx.fillRect(0, 0, W, H);
   }
-  if (G.whiteFlash > 0) {
-    ctx.fillStyle = `rgba(255, 240, 200, ${G.whiteFlash * 0.7})`;
+  if (S.whiteFlash > 0) {
+    ctx.fillStyle = `rgba(255, 240, 200, ${S.whiteFlash * 0.7})`;
     ctx.fillRect(0, 0, W, H);
   }
+}
 
-  // Overlays & HUD
-  if (G.state === 'start') {
-    renderStartScreen();
-  } else {
-    renderHUD();
-    if (G.state === 'upgrade') renderUpgradeModal();
-    else if (G.state === 'pause') renderPauseModal();
-    else if (G.state === 'over') renderGameOverModal();
+export function draw() {
+  ctx.save();
+
+  if (S.shakeTimer > 0 && S.state === 'play') {
+    ctx.translate((rand() - 0.5) * S.shakeMag * 2, (rand() - 0.5) * S.shakeMag * 2);
+  }
+
+  drawArena();
+
+  if (S.keeper) {
+    drawShardsAndDrops();
+    drawShots();
+    drawFoes();
+    drawKeeper();
+  }
+
+  drawFlashes();
+
+  if (S.state === 'start') drawTitle();
+  else {
+    drawHud();
+    if (S.state === 'bless') drawBlessings();
+    else if (S.state === 'pause') drawPaused();
+    else if (S.state === 'over') drawFallen();
   }
 
   ctx.restore();
 }
 
-export function renderHUD() {
-  const p = G.player;
-  if (!p) return;
+export function drawHud() {
+  const k = S.keeper;
+  if (!k) return;
 
-  // Top-Left: HP Bar & Dash Indicator
   ctx.save();
+
+  // Top left: the keeper's health and dash.
   ctx.fillStyle = 'rgba(14, 10, 22, 0.82)';
   ctx.strokeStyle = 'rgba(255, 159, 28, 0.45)';
   ctx.lineWidth = 1.5;
   ctx.fillRect(24, 22, 260, 62);
   ctx.strokeRect(24, 22, 260, 62);
 
-  // HP Bar
-  const hpRatio = Math.max(0, p.hp / p.maxHp);
+  const hpRatio = Math.max(0, k.hp / k.maxHp);
   ctx.fillStyle = '#261830';
   ctx.fillRect(36, 32, 236, 20);
   const hpGrad = ctx.createLinearGradient(36, 0, 272, 0);
@@ -445,12 +432,11 @@ export function renderHUD() {
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 12px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(`HP  ${Math.ceil(p.hp)} / ${p.maxHp}`, 154, 46);
+  ctx.fillText(`HP  ${Math.ceil(k.hp)} / ${k.maxHp}`, 154, 46);
 
-  // Dash Cooldown Bar
-  const dashMax = getDashMaxCooldown();
-  const dashReady = p.dashCooldown <= 0;
-  const dashRatio = dashReady ? 1 : 1 - p.dashCooldown / dashMax;
+  const dashMax = dashCooldownMax();
+  const dashReady = k.dashCooldown <= 0;
+  const dashRatio = dashReady ? 1 : 1 - k.dashCooldown / dashMax;
   ctx.fillStyle = '#1b1429';
   ctx.fillRect(36, 60, 150, 12);
   ctx.fillStyle = dashReady ? '#00f5d4' : '#8338ec';
@@ -460,27 +446,25 @@ export function renderHUD() {
   ctx.textAlign = 'left';
   ctx.fillText(dashReady ? 'DASH READY [SHIFT]' : 'DASH RECHARGING', 194, 70);
 
-  // Build Upgrade Icons under HP Box
+  // The build so far, as a row of little icons.
   let iconX = 28;
-  const iconY = 102;
-  UPGRADES.forEach((u) => {
-    const lv = p.upgrades[u.id] || 0;
-    if (lv > 0) {
-      ctx.fillStyle = 'rgba(18, 12, 28, 0.88)';
-      ctx.strokeStyle = u.color;
-      ctx.lineWidth = 1.5;
-      ctx.fillRect(iconX, iconY - 14, 34, 34);
-      ctx.strokeRect(iconX, iconY - 14, 34, 34);
-      drawUpgradeIcon(u.id, iconX + 17, iconY + 1, 9, u.color);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 10px sans-serif';
-      ctx.textAlign = 'right';
-      ctx.fillText('L' + lv, iconX + 32, iconY + 18);
-      iconX += 40;
-    }
-  });
+  for (const b of BLESSINGS) {
+    const lv = k.blessings[b.id] || 0;
+    if (lv === 0) continue;
+    ctx.fillStyle = 'rgba(18, 12, 28, 0.88)';
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(iconX, 88, 34, 34);
+    ctx.strokeRect(iconX, 88, 34, 34);
+    blessingGlyph(b.id, iconX + 17, 103, 9, b.color);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('L' + lv, iconX + 32, 120);
+    iconX += 40;
+  }
 
-  // Top-Right: Wave, Score, Combo, Kills
+  // Top right: score, wave, kills, clock, combo.
   ctx.fillStyle = 'rgba(14, 10, 22, 0.82)';
   ctx.strokeStyle = 'rgba(255, 159, 28, 0.45)';
   ctx.fillRect(W - 264, 22, 240, 74);
@@ -489,21 +473,21 @@ export function renderHUD() {
   ctx.textAlign = 'right';
   ctx.fillStyle = '#ffd166';
   ctx.font = 'bold 20px sans-serif';
-  ctx.fillText(`SCORE  ${Math.floor(G.score).toLocaleString()}`, W - 36, 46);
+  ctx.fillText(`SCORE  ${Math.floor(S.score).toLocaleString()}`, W - 36, 46);
 
   ctx.fillStyle = '#e0d6ed';
   ctx.font = 'bold 13px sans-serif';
-  const mins = Math.floor(G.time / 60);
-  const secs = Math.floor(G.time % 60).toString().padStart(2, '0');
-  ctx.fillText(`WAVE ${G.wave}   •   KILLS ${G.kills}   •   ${mins}:${secs}`, W - 36, 68);
+  const mins = Math.floor(S.time / 60);
+  const secs = Math.floor(S.time % 60).toString().padStart(2, '0');
+  ctx.fillText(`WAVE ${S.wave}   •   KILLS ${S.kills}   •   ${mins}:${secs}`, W - 36, 68);
 
-  const mult = Math.floor(G.combo);
+  const mult = Math.floor(S.combo);
   ctx.fillStyle = mult >= 4 ? '#ff006e' : (mult >= 2 ? '#ff9f1c' : '#8d829c');
   ctx.font = 'bold 13px sans-serif';
   ctx.fillText(`COMBO  x${mult}${Sfx.muted ? '  [MUTED]' : ''}`, W - 36, 86);
 
-  // Boss HP Bar at Top-Center if Boss is alive
-  const boss = G.enemies.find((e) => e.type === 'boss');
+  // The Warden's health, dead center, while it lives; else the wave banner.
+  const boss = S.foes.find((f) => f.type === 'boss');
   if (boss) {
     const bw = 420;
     const bx = CX - bw / 2;
@@ -523,25 +507,23 @@ export function renderHUD() {
     ctx.fillRect(bx, by + 16, bw, 14);
     ctx.fillStyle = '#9d4edd';
     ctx.fillRect(bx, by + 16, bw * Math.max(0, boss.hp / boss.maxHp), 14);
-  } else if (G.bannerTimer > 0) {
-    // Wave Banner
-    const alpha = Math.min(1, G.bannerTimer * 1.2);
+  } else if (S.bannerTimer > 0) {
     ctx.save();
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = Math.min(1, S.bannerTimer * 1.2);
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffd166';
     ctx.font = 'bold 34px sans-serif';
     ctx.shadowColor = '#ff6b35';
     ctx.shadowBlur = 16;
-    ctx.fillText(G.bannerText, CX, 118);
+    ctx.fillText(S.bannerText, CX, 118);
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#e2d9f3';
     ctx.font = 'bold 13px sans-serif';
-    ctx.fillText(G.bannerSub, CX, 140);
+    ctx.fillText(S.bannerSub, CX, 140);
     ctx.restore();
   }
 
-  // Bottom XP Bar
+  // The ember resonance bar along the bottom.
   const xpW = W - 48;
   const xpX = 24;
   const xpY = H - 28;
@@ -551,7 +533,7 @@ export function renderHUD() {
   xpGrad.addColorStop(0, '#ff7b00');
   xpGrad.addColorStop(1, '#ffd166');
   ctx.fillStyle = xpGrad;
-  ctx.fillRect(xpX, xpY, xpW * Math.min(1, p.xp / p.xpNext), 14);
+  ctx.fillRect(xpX, xpY, xpW * Math.min(1, k.xp / k.xpNext), 14);
   ctx.strokeStyle = 'rgba(255, 209, 102, 0.5)';
   ctx.lineWidth = 1.2;
   ctx.strokeRect(xpX, xpY, xpW, 14);
@@ -559,17 +541,16 @@ export function renderHUD() {
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(`LEVEL ${p.level}  —  EMBER RESONANCE (${p.xp} / ${p.xpNext})`, CX, xpY + 11);
+  ctx.fillText(`LEVEL ${k.level}  —  EMBER RESONANCE (${k.xp} / ${k.xpNext})`, CX, xpY + 11);
 
   ctx.restore();
 }
 
-export function renderStartScreen() {
+export function drawTitle() {
   ctx.save();
   ctx.fillStyle = 'rgba(7, 4, 12, 0.55)';
   ctx.fillRect(0, 0, W, H);
 
-  // Center Ornamental Frame
   const bw = 660;
   const bh = 470;
   const bx = CX - bw / 2;
@@ -580,12 +561,10 @@ export function renderStartScreen() {
   ctx.lineWidth = 2.5;
   ctx.fillRect(bx, by, bw, bh);
   ctx.strokeRect(bx, by, bw, bh);
-
   ctx.strokeStyle = 'rgba(255, 209, 102, 0.3)';
   ctx.lineWidth = 1;
   ctx.strokeRect(bx + 8, by + 8, bw - 16, bh - 16);
 
-  // Title
   ctx.textAlign = 'center';
   ctx.shadowColor = '#ff6b35';
   ctx.shadowBlur = 28;
@@ -598,7 +577,6 @@ export function renderStartScreen() {
   ctx.font = 'bold 18px sans-serif';
   ctx.fillText('L A S T   L A N T E R N   O F   T H E   H O L L O W', CX, by + 128);
 
-  // Lore & Controls Box
   ctx.fillStyle = 'rgba(28, 20, 44, 0.75)';
   ctx.fillRect(bx + 48, by + 156, bw - 96, 165);
   ctx.strokeStyle = 'rgba(255, 159, 28, 0.35)';
@@ -614,19 +592,19 @@ export function renderStartScreen() {
   ctx.fillText('WASD / Arrows : Move     •     Mouse / Space : Aim & Fire Bolts', CX, by + 252);
   ctx.fillText('Shift : Flame Dash (Invulnerable)     •     P : Pause     •     M : Mute', CX, by + 278);
 
-  // Best Score Banner — only once a run has actually been played.
-  if (G.best.score > 0) {
+  // The best line only appears once a run has actually been played.
+  if (S.best.score > 0) {
     ctx.fillStyle = '#00f5d4';
     ctx.font = 'bold 14px sans-serif';
-    ctx.fillText(`HIGHEST RECORD:  ${G.best.score.toLocaleString()} PTS   (WAVE ${G.best.wave}  •  ${G.best.kills} KILLS)`, CX, by + 352);
+    ctx.fillText(`HIGHEST RECORD:  ${S.best.score.toLocaleString()} PTS   (WAVE ${S.best.wave}  •  ${S.best.kills} KILLS)`, CX, by + 352);
   }
 
-  // Pulsing CTA Button
+  // The pulsing call to action.
   const btnW = 280;
   const btnH = 54;
   const btnX = CX - btnW / 2;
   const btnY = by + 382;
-  const pulse = Math.sin(G.time * 4.5) * 4;
+  const pulse = Math.sin(S.time * 4.5) * 4;
 
   const grad = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH);
   grad.addColorStop(0, '#ff9f1c');
@@ -644,7 +622,7 @@ export function renderStartScreen() {
   ctx.restore();
 }
 
-export function renderUpgradeModal() {
+export function drawBlessings() {
   ctx.save();
   ctx.fillStyle = 'rgba(8, 5, 15, 0.78)';
   ctx.fillRect(0, 0, W, H);
@@ -661,61 +639,57 @@ export function renderUpgradeModal() {
   ctx.font = 'bold 15px sans-serif';
   ctx.fillText('Choose an Ember Blessing (Click a card or press 1, 2, 3)', CX, 148);
 
-  const rects = getUpgradeCardRects();
+  const rects = cardRects();
   for (let i = 0; i < rects.length; i++) {
     const r = rects[i];
-    const u = G.upgradeChoices[i];
-    if (!u) continue;
+    const b = S.blessingChoices[i];
+    if (!b) continue;
 
-    const curLv = G.player.upgrades[u.id] || 0;
+    const curLv = S.keeper.blessings[b.id] || 0;
     const hover = mouse.x >= r.x && mouse.x <= r.x + r.w && mouse.y >= r.y && mouse.y <= r.y + r.h;
 
     ctx.save();
     if (hover) ctx.translate(0, -6);
 
     ctx.fillStyle = hover ? 'rgba(34, 24, 52, 0.96)' : 'rgba(22, 15, 36, 0.94)';
-    ctx.strokeStyle = hover ? '#ffd166' : u.color;
+    ctx.strokeStyle = hover ? '#ffd166' : b.color;
     ctx.lineWidth = hover ? 3 : 2;
     ctx.fillRect(r.x, r.y, r.w, r.h);
     ctx.strokeRect(r.x, r.y, r.w, r.h);
 
-    // Key badge
-    ctx.fillStyle = u.color;
+    ctx.fillStyle = b.color;
     ctx.fillRect(r.x + 14, r.y + 14, 28, 28);
     ctx.fillStyle = '#120b1d';
     ctx.font = '900 15px sans-serif';
     ctx.fillText(String(i + 1), r.x + 28, r.y + 34);
 
-    // Icon Medallion
     ctx.beginPath();
     ctx.arc(r.x + r.w / 2, r.y + 92, 38, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(12, 8, 20, 0.9)';
     ctx.fill();
-    ctx.strokeStyle = u.color;
+    ctx.strokeStyle = b.color;
     ctx.lineWidth = 2.5;
     ctx.stroke();
 
-    drawUpgradeIcon(u.id, r.x + r.w / 2, r.y + 92, 20, u.color);
+    blessingGlyph(b.id, r.x + r.w / 2, r.y + 92, 20, b.color);
 
-    // Title & Description
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 20px sans-serif';
-    ctx.fillText(u.name, r.x + r.w / 2, r.y + 168);
+    ctx.fillText(b.name, r.x + r.w / 2, r.y + 168);
 
     ctx.fillStyle = '#ffd166';
     ctx.font = 'bold 14px sans-serif';
-    ctx.fillText(u.desc, r.x + r.w / 2, r.y + 202);
+    ctx.fillText(b.desc, r.x + r.w / 2, r.y + 202);
 
-    // Level Pips (1..5)
+    // Five pips: filled up to the rank this pick would reach.
     const pipW = 24;
     const pipGap = 8;
     const totalPipW = 5 * pipW + 4 * pipGap;
     const startPipX = r.x + (r.w - totalPipW) / 2;
     const pipY = r.y + 252;
-
     for (let p = 0; p < 5; p++) {
       const px = startPipX + p * (pipW + pipGap);
-      ctx.fillStyle = p <= curLv ? u.color : '#2a1f3d';
+      ctx.fillStyle = p <= curLv ? b.color : '#2a1f3d';
       ctx.fillRect(px, pipY, pipW, 10);
       ctx.strokeStyle = 'rgba(255,255,255,0.35)';
       ctx.lineWidth = 1;
@@ -732,7 +706,7 @@ export function renderUpgradeModal() {
   ctx.restore();
 }
 
-export function renderPauseModal() {
+export function drawPaused() {
   ctx.save();
   ctx.fillStyle = 'rgba(8, 5, 14, 0.75)';
   ctx.fillRect(0, 0, W, H);
@@ -748,7 +722,7 @@ export function renderPauseModal() {
   ctx.restore();
 }
 
-export function renderGameOverModal() {
+export function drawFallen() {
   ctx.save();
   ctx.fillStyle = 'rgba(8, 4, 12, 0.82)';
   ctx.fillRect(0, 0, W, H);
@@ -776,33 +750,32 @@ export function renderGameOverModal() {
   ctx.font = 'bold 15px sans-serif';
   ctx.fillText('The dark reclaimed the Hollow, yet your embers linger.', CX, by + 104);
 
-  // Stats Grid
-  const mins = Math.floor(G.time / 60);
-  const secs = Math.floor(G.time % 60).toString().padStart(2, '0');
-  const stats = [
-    ['FINAL SCORE', Math.floor(G.score).toLocaleString(), '#ffd166'],
-    ['WAVE REACHED', `WAVE ${G.wave}`, '#ff9f1c'],
-    ['CREATURES VANQUISHED', String(G.kills), '#00f5d4'],
-    ['TIME SURVIVED', `${mins}:${secs}  (LV ${G.player.level})`, '#e0aaff'],
+  const mins = Math.floor(S.time / 60);
+  const secs = Math.floor(S.time % 60).toString().padStart(2, '0');
+  const rows = [
+    ['FINAL SCORE', Math.floor(S.score).toLocaleString(), '#ffd166'],
+    ['WAVE REACHED', `WAVE ${S.wave}`, '#ff9f1c'],
+    ['CREATURES VANQUISHED', String(S.kills), '#00f5d4'],
+    ['TIME SURVIVED', `${mins}:${secs}  (LV ${S.keeper.level})`, '#e0aaff'],
   ];
 
-  stats.forEach((st, idx) => {
+  rows.forEach((row, idx) => {
     const sy = by + 150 + idx * 34;
     ctx.textAlign = 'left';
     ctx.fillStyle = '#b5a8c9';
     ctx.font = 'bold 14px sans-serif';
-    ctx.fillText(st[0], bx + 65, sy);
+    ctx.fillText(row[0], bx + 65, sy);
 
     ctx.textAlign = 'right';
-    ctx.fillStyle = st[2];
+    ctx.fillStyle = row[2];
     ctx.font = 'bold 18px sans-serif';
-    ctx.fillText(st[1], bx + bw - 65, sy);
+    ctx.fillText(row[1], bx + bw - 65, sy);
   });
 
   ctx.textAlign = 'center';
   ctx.fillStyle = '#06d6a0';
   ctx.font = 'bold 14px sans-serif';
-  ctx.fillText(`ALL-TIME BEST:  ${G.best.score.toLocaleString()} PTS  (WAVE ${G.best.wave})`, CX, by + 305);
+  ctx.fillText(`ALL-TIME BEST:  ${S.best.score.toLocaleString()} PTS  (WAVE ${S.best.wave})`, CX, by + 305);
 
   ctx.fillStyle = '#ffffff';
   ctx.font = '900 18px sans-serif';

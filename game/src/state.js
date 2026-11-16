@@ -1,20 +1,17 @@
-// EMBERFALL — the one shared mutable game state, plus the player factory,
-// the best-score record, and the derived player stats every system reads.
-// Every other module imports { G } and mutates its fields; G itself is never
-// rebound, so all modules always see the same game.
-import { CX, CY, W, H, STORAGE_KEY } from './config.js';
+// EMBERFALL — the single shared mutable run state. Every other module
+// imports { S } and mutates its fields; S itself is never rebound, so all
+// modules always see the same run. Also here: the keeper factory, the
+// best-run record, and the stats derived from blessing ranks.
+import { CX, CY, W, H, SAVE_KEY } from './config.js';
 import { randRange, randChoice } from './random.js';
 
-// Fresh players start with no record: the title screen hides the best line
-// until a run has actually been played (staged screenshot scenes set their
-// own best explicitly in shots.js).
 export function emptyBest() {
   return { score: 0, wave: 0, kills: 0 };
 }
 
 export function loadBest() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(SAVE_KEY);
     if (raw) return JSON.parse(raw);
   } catch (e) {}
   return emptyBest();
@@ -25,7 +22,7 @@ export function saveBest(score, wave, kills) {
     const cur = loadBest();
     if (score > cur.score) {
       localStorage.setItem(
-        STORAGE_KEY,
+        SAVE_KEY,
         JSON.stringify({
           score: Math.floor(score),
           wave: Math.max(wave, cur.wave),
@@ -36,13 +33,15 @@ export function saveBest(score, wave, kills) {
   } catch (e) {}
 }
 
-export const G = {
-  state: 'start', // 'start', 'play', 'upgrade', 'pause', 'over'
+// A fresh keeper has no record yet, so the title screen hides the best line
+// until a run has actually been played. Staged screenshot scenes set their
+// own best explicitly in shots.js.
+export const S = {
+  state: 'start', // 'start' | 'play' | 'bless' | 'pause' | 'over'
   time: 0,
   score: 0,
   kills: 0,
   wave: 1,
-  waveTimer: 0,
   waveSpawned: 0,
   waveQuota: 14,
   spawnCooldown: 0,
@@ -56,18 +55,18 @@ export const G = {
   hitStop: 0,
   hurtFlash: 0,
   whiteFlash: 0,
-  upgradeChoices: [],
+  blessingChoices: [],
   best: loadBest(),
 
-  player: null,
-  bullets: [],
-  enemyBullets: [],
-  enemies: [],
-  gems: [],
-  pickups: [],
-  particles: [],
-  floatTexts: [],
-  bgEmbers: [],
+  keeper: null,
+  bolts: [],
+  foeShots: [],
+  foes: [],
+  shards: [],
+  drops: [],
+  sparks: [],
+  popups: [],
+  drifting: [],
   pillars: [
     { x: CX - 260, y: CY - 150, r: 22 },
     { x: CX + 260, y: CY - 150, r: 22 },
@@ -76,7 +75,7 @@ export const G = {
   ],
 };
 
-export function createPlayer() {
+export function makeKeeper() {
   return {
     x: CX,
     y: CY + 95,
@@ -96,7 +95,7 @@ export function createPlayer() {
     dashVy: 0,
     invuln: 0,
     auraTick: 0,
-    upgrades: {
+    blessings: {
       dmg: 0, rate: 0, multi: 0, pierce: 0,
       bspd: 0, mspd: 0, hp: 0, mag: 0,
       dash: 0, aura: 0, crit: 0, regen: 0,
@@ -104,10 +103,10 @@ export function createPlayer() {
   };
 }
 
-export function initBgEmbers() {
-  G.bgEmbers = [];
+export function scatterEmbers() {
+  S.drifting = [];
   for (let i = 0; i < 65; i++) {
-    G.bgEmbers.push({
+    S.drifting.push({
       x: randRange(0, W),
       y: randRange(0, H),
       r: randRange(1, 3.2),
@@ -120,59 +119,58 @@ export function initBgEmbers() {
   }
 }
 
-export function startNewGame() {
-  G.state = 'play';
-  G.time = 0;
-  G.score = 0;
-  G.kills = 0;
-  G.wave = 1;
-  G.waveTimer = 0;
-  G.waveSpawned = 0;
-  G.waveQuota = 14;
-  G.spawnCooldown = 0.8;
-  G.bannerTimer = 2.6;
-  G.bannerText = 'WAVE 1';
-  G.bannerSub = 'THE NIGHT AWAKENS';
-  G.combo = 1;
-  G.comboTimer = 0;
-  G.shakeTimer = 0;
-  G.shakeMag = 0;
-  G.hitStop = 0;
-  G.hurtFlash = 0;
-  G.whiteFlash = 0;
-  G.upgradeChoices = [];
+export function newRun() {
+  S.state = 'play';
+  S.time = 0;
+  S.score = 0;
+  S.kills = 0;
+  S.wave = 1;
+  S.waveSpawned = 0;
+  S.waveQuota = 14;
+  S.spawnCooldown = 0.8;
+  S.bannerTimer = 2.6;
+  S.bannerText = 'WAVE 1';
+  S.bannerSub = 'THE NIGHT AWAKENS';
+  S.combo = 1;
+  S.comboTimer = 0;
+  S.shakeTimer = 0;
+  S.shakeMag = 0;
+  S.hitStop = 0;
+  S.hurtFlash = 0;
+  S.whiteFlash = 0;
+  S.blessingChoices = [];
 
-  G.player = createPlayer();
-  G.bullets = [];
-  G.enemyBullets = [];
-  G.enemies = [];
-  G.gems = [];
-  G.pickups = [];
-  G.particles = [];
-  G.floatTexts = [];
-  if (G.bgEmbers.length === 0) initBgEmbers();
+  S.keeper = makeKeeper();
+  S.bolts = [];
+  S.foeShots = [];
+  S.foes = [];
+  S.shards = [];
+  S.drops = [];
+  S.sparks = [];
+  S.popups = [];
+  if (S.drifting.length === 0) scatterEmbers();
 }
 
-// --- Derived player stats (upgrade ranks -> numbers) ---
-export function getPlayerDmg() {
-  return 18 * (1 + G.player.upgrades.dmg * 0.25);
+// --- Keeper stats derived from blessing ranks ---
+export function boltDamage() {
+  return 18 * (1 + S.keeper.blessings.dmg * 0.25);
 }
-export function getFireInterval() {
-  return 0.21 / (1 + G.player.upgrades.rate * 0.2);
+export function fireGap() {
+  return 0.21 / (1 + S.keeper.blessings.rate * 0.2);
 }
-export function getMoveSpeed() {
-  return 235 * (1 + G.player.upgrades.mspd * 0.12);
+export function moveSpeed() {
+  return 235 * (1 + S.keeper.blessings.mspd * 0.12);
 }
-export function getBoltSpeed() {
-  return 620 * (1 + G.player.upgrades.bspd * 0.2);
+export function boltSpeed() {
+  return 620 * (1 + S.keeper.blessings.bspd * 0.2);
 }
-export function getMagnetRadius() {
-  return 95 * (1 + G.player.upgrades.mag * 0.4);
+export function magnetRange() {
+  return 95 * (1 + S.keeper.blessings.mag * 0.4);
 }
-export function getDashMaxCooldown() {
-  return 2.4 * Math.pow(0.75, G.player.upgrades.dash);
+export function dashCooldownMax() {
+  return 2.4 * Math.pow(0.75, S.keeper.blessings.dash);
 }
-export function getAuraRadius() {
-  const lv = G.player.upgrades.aura;
+export function auraRange() {
+  const lv = S.keeper.blessings.aura;
   return lv > 0 ? 75 + lv * 28 : 0;
 }
