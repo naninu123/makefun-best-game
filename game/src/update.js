@@ -22,6 +22,9 @@ function driftEmbers(dt) {
   }
 }
 
+// The lantern and the pillars block movement; built once, read every frame.
+const OBSTACLES = [{ x: CX, y: CY, r: 28 }, ...S.pillars];
+
 function stepKeeper(dt) {
   const k = S.keeper;
 
@@ -64,7 +67,7 @@ function stepKeeper(dt) {
   // Stay inside the arena, and slide around the lantern and the pillars.
   k.x = Math.max(k.r + 16, Math.min(W - k.r - 16, k.x));
   k.y = Math.max(k.r + 16, Math.min(H - k.r - 16, k.y));
-  for (const ob of [{ x: CX, y: CY, r: 28 }, ...S.pillars]) {
+  for (const ob of OBSTACLES) {
     const dx = k.x - ob.x;
     const dy = k.y - ob.y;
     const d = Math.hypot(dx, dy);

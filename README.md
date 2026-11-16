@@ -34,7 +34,7 @@ node serve.ts
 ```
 
 Controls: WASD / arrows move, mouse aim, hold click or Space to fire,
-Shift dash, P pause, M mute, R restart, 1/2/3 pick an upgrade card.
+Shift dash, P pause, M mute, R restart, 1/2/3 pick a blessing card.
 
 ## Layout
 

@@ -233,8 +233,9 @@ export function onTap(newRun) {
   } else if (S.state === 'pause') {
     S.state = 'play';
   } else if (S.state === 'bless') {
-    for (let i = 0; i < cardRects().length; i++) {
-      const c = cardRects()[i];
+    const rects = cardRects();
+    for (let i = 0; i < rects.length; i++) {
+      const c = rects[i];
       const inside = mouse.x >= c.x && mouse.x <= c.x + c.w && mouse.y >= c.y && mouse.y <= c.y + c.h;
       if (inside && S.blessingChoices[i]) {
         takeBlessing(S.blessingChoices[i]);
