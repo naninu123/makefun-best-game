@@ -105,6 +105,17 @@ export function slayFoe(foe) {
   S.combo = Math.min(8, S.combo + (foe.type === 'boss' ? 3 : 0.25));
   S.comboTimer = 4.2;
   S.score += foe.score * Math.floor(S.combo);
+  S.streak++;
+  // A clean run of kills earns a shout: the longer the streak, the louder.
+  const marks = [[25, 'EMBERFALL'], [15, 'INFERNO'], [10, 'RAMPAGE'], [5, 'EMBER STREAK']];
+  for (const [at, label] of marks) {
+    if (S.streak === at) {
+      S.announce = label;
+      S.announceTimer = 2.4;
+      Sfx.play('levelup');
+      break;
+    }
+  }
 
   const burst = foe.type === 'boss' ? 55 : (foe.type === 'brute' ? 24 : 14);
   for (let i = 0; i < burst; i++) {
@@ -167,6 +178,7 @@ export function woundKeeper(dmg) {
   k.invuln = 0.65;
   S.combo = 1;
   S.comboTimer = 0;
+  S.streak = 0; // Taking a hit breaks the kill streak.
   S.hurtFlash = 0.45;
   S.shakeTimer = 0.28;
   S.shakeMag = 10;

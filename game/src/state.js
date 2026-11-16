@@ -50,6 +50,9 @@ export const S = {
   bannerSub: '',
   combo: 1,
   comboTimer: 0,
+  streak: 0,
+  announce: '',
+  announceTimer: 0,
   shakeTimer: 0,
   shakeMag: 0,
   hitStop: 0,
@@ -133,6 +136,9 @@ export function newRun() {
   S.bannerSub = 'THE NIGHT AWAKENS';
   S.combo = 1;
   S.comboTimer = 0;
+  S.streak = 0;
+  S.announce = '';
+  S.announceTimer = 0;
   S.shakeTimer = 0;
   S.shakeMag = 0;
   S.hitStop = 0;

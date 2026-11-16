@@ -42,6 +42,15 @@ export function poly(x, y, r, sides, rot, fill, stroke, lw = 2) {
   }
 }
 
+// A dark panel with a warm rim, used by the HUD and the screens.
+function panel(x, y, w, h, fill = 'rgba(14, 10, 22, 0.82)', rim = 'rgba(255, 159, 28, 0.45)', lw = 1.5) {
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = rim;
+  ctx.lineWidth = lw;
+  ctx.strokeRect(x, y, w, h);
+}
+
 // The little pictogram for one blessing, drawn at (cx, cy).
 export function blessingGlyph(id, cx, cy, r, color) {
   ctx.save();
@@ -411,11 +420,7 @@ export function drawHud() {
   ctx.save();
 
   // Top left: the keeper's health and dash.
-  ctx.fillStyle = 'rgba(14, 10, 22, 0.82)';
-  ctx.strokeStyle = 'rgba(255, 159, 28, 0.45)';
-  ctx.lineWidth = 1.5;
-  ctx.fillRect(24, 22, 260, 62);
-  ctx.strokeRect(24, 22, 260, 62);
+  panel(24, 22, 260, 62);
 
   const hpRatio = Math.max(0, k.hp / k.maxHp);
   ctx.fillStyle = '#261830';
@@ -451,11 +456,7 @@ export function drawHud() {
   for (const b of BLESSINGS) {
     const lv = k.blessings[b.id] || 0;
     if (lv === 0) continue;
-    ctx.fillStyle = 'rgba(18, 12, 28, 0.88)';
-    ctx.strokeStyle = b.color;
-    ctx.lineWidth = 1.5;
-    ctx.fillRect(iconX, 88, 34, 34);
-    ctx.strokeRect(iconX, 88, 34, 34);
+    panel(iconX, 88, 34, 34, 'rgba(18, 12, 28, 0.88)', b.color);
     blessingGlyph(b.id, iconX + 17, 103, 9, b.color);
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 10px sans-serif';
@@ -465,10 +466,7 @@ export function drawHud() {
   }
 
   // Top right: score, wave, kills, clock, combo.
-  ctx.fillStyle = 'rgba(14, 10, 22, 0.82)';
-  ctx.strokeStyle = 'rgba(255, 159, 28, 0.45)';
-  ctx.fillRect(W - 264, 22, 240, 74);
-  ctx.strokeRect(W - 264, 22, 240, 74);
+  panel(W - 264, 22, 240, 74);
 
   ctx.textAlign = 'right';
   ctx.fillStyle = '#ffd166';
@@ -492,11 +490,7 @@ export function drawHud() {
     const bw = 420;
     const bx = CX - bw / 2;
     const by = 26;
-    ctx.fillStyle = 'rgba(14, 8, 24, 0.9)';
-    ctx.fillRect(bx - 8, by - 6, bw + 16, 42);
-    ctx.strokeStyle = '#c77dff';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(bx - 8, by - 6, bw + 16, 42);
+    panel(bx - 8, by - 6, bw + 16, 42, 'rgba(14, 8, 24, 0.9)', '#c77dff', 2);
 
     ctx.fillStyle = '#e0aaff';
     ctx.font = 'bold 13px sans-serif';
@@ -520,6 +514,19 @@ export function drawHud() {
     ctx.fillStyle = '#e2d9f3';
     ctx.font = 'bold 13px sans-serif';
     ctx.fillText(S.bannerSub, CX, 140);
+    ctx.restore();
+  }
+
+  // A kill-streak shout, fading out under the wave banner.
+  if (S.announceTimer > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, S.announceTimer);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ff006e';
+    ctx.font = '900 30px sans-serif';
+    ctx.shadowColor = '#ff9f1c';
+    ctx.shadowBlur = 14;
+    ctx.fillText(S.announce, CX, 168);
     ctx.restore();
   }
 
@@ -556,11 +563,7 @@ export function drawTitle() {
   const bx = CX - bw / 2;
   const by = CY - bh / 2;
 
-  ctx.fillStyle = 'rgba(16, 11, 26, 0.90)';
-  ctx.strokeStyle = '#ff9f1c';
-  ctx.lineWidth = 2.5;
-  ctx.fillRect(bx, by, bw, bh);
-  ctx.strokeRect(bx, by, bw, bh);
+  panel(bx, by, bw, bh, 'rgba(16, 11, 26, 0.90)', '#ff9f1c', 2.5);
   ctx.strokeStyle = 'rgba(255, 209, 102, 0.3)';
   ctx.lineWidth = 1;
   ctx.strokeRect(bx + 8, by + 8, bw - 16, bh - 16);
@@ -651,11 +654,7 @@ export function drawBlessings() {
     ctx.save();
     if (hover) ctx.translate(0, -6);
 
-    ctx.fillStyle = hover ? 'rgba(34, 24, 52, 0.96)' : 'rgba(22, 15, 36, 0.94)';
-    ctx.strokeStyle = hover ? '#ffd166' : b.color;
-    ctx.lineWidth = hover ? 3 : 2;
-    ctx.fillRect(r.x, r.y, r.w, r.h);
-    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    panel(r.x, r.y, r.w, r.h, hover ? 'rgba(34, 24, 52, 0.96)' : 'rgba(22, 15, 36, 0.94)', hover ? '#ffd166' : b.color, hover ? 3 : 2);
 
     ctx.fillStyle = b.color;
     ctx.fillRect(r.x + 14, r.y + 14, 28, 28);
@@ -732,11 +731,7 @@ export function drawFallen() {
   const bx = CX - bw / 2;
   const by = CY - bh / 2;
 
-  ctx.fillStyle = 'rgba(18, 11, 28, 0.95)';
-  ctx.strokeStyle = '#e63946';
-  ctx.lineWidth = 2.5;
-  ctx.fillRect(bx, by, bw, bh);
-  ctx.strokeRect(bx, by, bw, bh);
+  panel(bx, by, bw, bh, 'rgba(18, 11, 28, 0.95)', '#e63946', 2.5);
 
   ctx.textAlign = 'center';
   ctx.shadowColor = '#e63946';

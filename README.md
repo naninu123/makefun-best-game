@@ -18,7 +18,8 @@ bounty, $1,000 in USDC.
   regen, max HP...) up to rank 5 each, shown as icons in the HUD.
 - **Juice:** particles, screen shake, hit-stop, floating damage numbers,
   combo multiplier, dash with invulnerability, heart / bomb / magnet
-  pickups, and a full synthesized WebAudio soundscape — no audio files.
+  pickups, and kill-streak shouts (Ember Streak 5, Rampage 10, Inferno 15,
+  Emberfall 25) that reset when you take a hit.  pickups, and a full synthesized WebAudio soundscape — no audio files.
 - **Complete:** title screen with best record, HUD (HP, dash, XP, score,
   wave, kills, combo), pause, game-over stats with restart, best score kept
   in localStorage.

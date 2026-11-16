@@ -405,6 +405,7 @@ export function step(dt) {
 
   S.time += dt;
   if (S.bannerTimer > 0) S.bannerTimer -= dt;
+  if (S.announceTimer > 0) S.announceTimer -= dt;
   if (S.shakeTimer > 0) S.shakeTimer -= dt;
   if (S.hurtFlash > 0) S.hurtFlash -= dt * 1.4;
   if (S.whiteFlash > 0) S.whiteFlash -= dt * 2.2;
